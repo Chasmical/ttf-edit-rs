@@ -1,0 +1,16 @@
+[package]
+version = "0.1.0"
+edition = "2024"
+name = "ttf-edit"
+description = "A TrueType/OpenType font manipulation library"
+authors = ["Chasmical <kaz@chsm.dev>"]
+keywords = []
+categories = []
+repository = "https://github.com/Chasmical/ttf-edit-rs"
+license = "MIT OR Apache-2.0"
+readme = "../../README.md"
+
+[dependencies]
+quick-xml = { version = "0.40.1", features = ["serialize"] }
+serde = { version = "1.0.228", features = ["derive"] }
+zerocopy = "0.8.52"
