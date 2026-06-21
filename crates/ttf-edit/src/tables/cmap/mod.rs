@@ -1,4 +1,7 @@
-use crate::types::{Offset32, uint16};
+use crate::{
+    tables::{get_dyn_array, get_dyn_array_offset},
+    types::{Offset32, uint16},
+};
 
 mod codepoint;
 mod glyph_id;
@@ -16,21 +19,22 @@ pub mod format4;
 pub mod format6;
 pub mod format8;
 
-use format0::*;
-use format2::*;
-use format4::*;
-use format6::*;
-use format8::*;
-use format10::*;
-use format12::*;
-use format13::*;
-use format14::*;
+// use format0::*;
+// use format2::*;
+// use format4::*;
+// use format6::*;
+// use format8::*;
+// use format10::*;
+// use format12::*;
+// use format13::*;
+// use format14::*;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 #[repr(C)]
 pub struct CmapTableRepr {
     version: uint16,
     num_tables: uint16,
+    encoding_records: [EncodingRecordRepr; 0],
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -47,23 +51,22 @@ pub struct CmapSubtableRepr {
     format: uint16,
     length: uint16,
     language: uint16,
+    data: [u8; 0],
 }
 
 impl CmapTableRepr {
     pub const fn encodings(&self) -> &[EncodingRecordRepr] {
-        let records_start = unsafe { std::ptr::from_ref(self).byte_add(size_of::<Self>()) };
-        unsafe { std::slice::from_raw_parts(records_start.cast(), self.num_tables.get() as _) }
+        unsafe { get_dyn_array(&self.encoding_records, self.num_tables) }
     }
 }
 impl EncodingRecordRepr {
-    pub const fn subtable(&self, cmap: &CmapTableRepr) -> &CmapSubtableRepr {
-        unsafe { &*std::ptr::from_ref(cmap).byte_add(self.subtable_offset.get() as _).cast() }
+    pub const fn subtable<'a>(&self, cmap: &'a CmapTableRepr) -> &'a CmapSubtableRepr {
+        unsafe { &get_dyn_array_offset(cmap, self.subtable_offset, 1)[0] }
     }
 }
 impl CmapSubtableRepr {
     pub const fn data(&self) -> &[u8] {
-        let data_start = unsafe { std::ptr::from_ref(self).byte_add(size_of::<Self>()) };
-        unsafe { std::slice::from_raw_parts(data_start.cast(), self.length.get() as _) }
+        unsafe { get_dyn_array(&self.data, self.length) }
     }
 }
 

@@ -2,10 +2,8 @@
 #![feature(derive_const)]
 #![feature(const_result_trait_fn)]
 #![feature(const_option_ops)]
-#![feature(const_destruct)]
 #![feature(const_convert)]
 #![feature(const_cmp)]
-#![feature(const_try)]
 
 pub mod tables;
 pub mod types;

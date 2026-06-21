@@ -29,7 +29,7 @@ impl Tag {
         if let Some(&bytes) = bytes.as_array::<4>()
             && matches!(bytes, [0x20..=0x7E, 0x20..=0x7E, 0x20..=0x7E, 0x20..=0x7E])
         {
-            Ok(Self(unsafe { std::mem::transmute(bytes) }))
+            Ok(Self(unsafe { std::mem::transmute::<[u8; 4], [TagByte; 4]>(bytes) }))
         } else {
             Err(())
         }

@@ -18,7 +18,7 @@ impl F2DOT14 {
     pub const fn get(&self) -> f32 {
         let integer = self.num[0] >> 6;
         let fraction = (((self.num[0] & 0x3F) as u16) << 8) | self.num[1] as u16;
-        return integer as f32 + fraction as f32 * (1.0 / 16384.0);
+        integer as f32 + fraction as f32 * (1.0 / 16384.0)
     }
 }
 
