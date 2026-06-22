@@ -14,14 +14,14 @@ impl Codepoint {
 
 impl_fmt_from_getter! { Debug, Display, Binary, Octal, LowerHex, UpperHex, LowerExp, UpperExp for Codepoint }
 
-const impl From<Codepoint> for u32 {
-    fn from(value: Codepoint) -> Self {
-        value.get()
-    }
-}
 const impl From<Codepoint> for usize {
     fn from(value: Codepoint) -> Self {
         value.get() as _
+    }
+}
+const impl From<Codepoint> for u32 {
+    fn from(value: Codepoint) -> Self {
+        value.get()
     }
 }
 

@@ -36,7 +36,7 @@ impl<'a> CmapSubtableTrait for &'a CmapSubtableFormat0 {
         Iter(self.glyph_id_array.iter().enumerate())
     }
     fn glyph_id(&self, codepoint: Codepoint) -> Option<GlyphId> {
-        self.glyph_id_array.get(codepoint.get() as usize).and_then(|id| GlyphId::new(*id as u32))
+        self.glyph_id_array.get(codepoint.get() as usize).map(|id| GlyphId::new(*id as u32))
     }
     fn codepoint(&self, glyph_id: GlyphId) -> Option<Codepoint> {
         let glyph_id: u8 = glyph_id.try_into().ok()?;
@@ -51,7 +51,9 @@ impl<'a> Iterator for Iter<'a> {
     type Item = (Codepoint, GlyphId);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.0.find_map(|(idx, &id)| GlyphId::new(id as u32).map(|id| ((idx as u32).into(), id)))
+        self.0.find_map(|(idx, &id)| {
+            if id != 0 { Some(((idx as u32).into(), GlyphId::new(id as u32))) } else { None }
+        })
     }
     fn size_hint(&self) -> (usize, Option<usize>) {
         (0, self.0.size_hint().1)

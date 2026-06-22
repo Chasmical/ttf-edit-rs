@@ -1,9 +1,15 @@
-use crate::{
-    tables::cmap::CmapTableRepr,
-    types::{Offset32, Tag, uint16, uint24, uint32},
-};
+use crate::types::{Offset32, Tag, uint16, uint24, uint32};
 
 pub mod cmap;
+pub mod head;
+pub mod hhea;
+pub mod hmtx;
+pub mod maxp;
+
+use {
+    cmap::CmapTableRepr, head::HeadTableRepr, hhea::HheaTableRepr, hmtx::HmtxTableHandle,
+    maxp::MaxpTableRepr,
+};
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 #[repr(C)]
@@ -34,7 +40,7 @@ impl TableDirectoryRepr {
         unsafe { get_dyn_array(&self.table_records, self.num_tables) }
     }
 
-    const fn find_table<TableRepr>(&self, tag: Tag) -> Option<&TableRepr> {
+    pub(crate) const fn find_table<TableRepr>(&self, tag: Tag) -> Option<&TableRepr> {
         let tables = self.tables();
         let mut idx = 0;
         while idx < tables.len() {
@@ -49,6 +55,18 @@ impl TableDirectoryRepr {
 
     pub const fn cmap(&self) -> &CmapTableRepr {
         self.find_table(Tag::cmap).unwrap()
+    }
+    pub const fn head(&self) -> &HeadTableRepr {
+        self.find_table(Tag::head).unwrap()
+    }
+    pub const fn hhea(&self) -> &HheaTableRepr {
+        self.find_table(Tag::hhea).unwrap()
+    }
+    pub const fn hmtx(&self) -> HmtxTableHandle<'_> {
+        HmtxTableHandle::new(self)
+    }
+    pub const fn maxp(&self) -> &MaxpTableRepr {
+        self.find_table(Tag::maxp).unwrap()
     }
 }
 
@@ -72,11 +90,11 @@ pub(crate) const unsafe fn get_dyn_array<T>(loc: &[T; 0], count: impl [const] In
 }
 pub(crate) const unsafe fn get_dyn_array_offset<T, Anchor>(
     anchor: &Anchor,
-    offset: impl [const] IntoOffset,
+    byte_offset: impl [const] IntoOffset,
     count: impl [const] IntoOffset,
 ) -> &[T] {
     unsafe {
-        let array_start = std::ptr::from_ref(anchor).cast::<u8>().byte_add(offset.offset());
+        let array_start = std::ptr::from_ref(anchor).cast::<u8>().byte_add(byte_offset.offset());
         std::slice::from_raw_parts(array_start.cast(), count.offset())
     }
 }

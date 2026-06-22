@@ -3,39 +3,45 @@ use crate::types::impl_fmt_from_getter;
 macro_rules! impl_fixed_point_number {
     (
         $(#[$outer:meta])*
-        $vis:vis struct $Name:ident($int:ty as $bytes:ty; $integer_bits:literal | $fraction_bits:literal);
+        $vis:vis struct $Name:ident(
+            $int:ty as [u8; $bytes:literal];
+            $integer_bits:literal|$fraction_bits:literal as $fp:ty
+        );
     ) => {
         $(#[$outer])*
         #[derive(Copy, Hash)]
         #[derive_const(Clone, PartialEq, Eq)]
         #[repr(transparent)]
-        $vis struct $Name($bytes);
+        $vis struct $Name([u8; $bytes]);
 
         const _: () = {
-            assert!(size_of::<$int>() == size_of::<$bytes>());
+            assert!(size_of::<$int>() == $bytes);
             assert!($integer_bits + $fraction_bits == <$int>::BITS);
         };
 
         impl $Name {
-            const STEP: f32 = 1.0 / (1 << $fraction_bits) as f32;
-            const MIN: f32 = -(1 << $integer_bits) as f32;
-            const MAX: f32 = ((1 << $integer_bits) - 1) as f32;
+            const STEP: $fp = 1.0 / (1 << $fraction_bits) as $fp;
+            const MIN: $fp = -(1 << $integer_bits) as $fp;
+            const MAX: $fp = ((1 << $integer_bits) - 1) as $fp;
 
-            pub const fn new(num: f32) -> Self {
+            pub const fn from_be_bytes(be_bytes: [u8; $bytes]) -> Self {
+                Self(be_bytes)
+            }
+            pub const fn new(num: $fp) -> Self {
                 assert!(matches!(num, Self::MIN..Self::MAX));
                 let num = (num / Self::STEP).round() as $int;
                 Self(num.to_be_bytes())
             }
 
-            pub const fn to_be_bytes(&self) -> $bytes {
+            pub const fn to_be_bytes(&self) -> [u8; $bytes] {
                 self.0
             }
             pub const fn to_frac_num(&self) -> $int {
                 <$int>::from_be_bytes(self.0)
             }
 
-            pub const fn get(&self) -> f32 {
-                self.to_frac_num() as f32 * Self::STEP
+            pub const fn get(&self) -> $fp {
+                self.to_frac_num() as $fp * Self::STEP
             }
         }
 
@@ -52,13 +58,13 @@ macro_rules! impl_fixed_point_number {
             }
         }
 
-        const impl PartialEq<f32> for $Name {
-            fn eq(&self, other: &f32) -> bool {
+        const impl PartialEq<$fp> for $Name {
+            fn eq(&self, other: &$fp) -> bool {
                 self.get().eq(other)
             }
         }
-        const impl PartialOrd<f32> for $Name {
-            fn partial_cmp(&self, other: &f32) -> Option<std::cmp::Ordering> {
+        const impl PartialOrd<$fp> for $Name {
+            fn partial_cmp(&self, other: &$fp) -> Option<std::cmp::Ordering> {
                 self.get().partial_cmp(other)
             }
         }
@@ -66,11 +72,11 @@ macro_rules! impl_fixed_point_number {
         impl std::str::FromStr for $Name {
             type Err = ();
             fn from_str(s: &str) -> Result<Self, Self::Err> {
-                f32::from_str(s).or(Err(())).map(Self::from)
+                <$fp>::from_str(s).or(Err(())).map(Self::from)
             }
         }
-        const impl From<f32> for $Name {
-            fn from(value: f32) -> $Name {
+        const impl From<$fp> for $Name {
+            fn from(value: $fp) -> $Name {
                 Self::new(value)
             }
         }
@@ -78,17 +84,41 @@ macro_rules! impl_fixed_point_number {
 }
 
 impl_fixed_point_number! {
-    pub struct Fixed(i32 as [u8; 4]; 16|16);
+    pub struct Fixed(i32 as [u8; 4]; 16|16 as f64);
 }
 impl_fixed_point_number! {
-    pub struct F2DOT14(i16 as [u8; 2]; 2|14);
+    pub struct F2DOT14(i16 as [u8; 2]; 2|14 as f32);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // TODO: write tests for Fixed
+    #[test]
+    fn fixed() {
+        let nums: [(f64, u32); _] = [
+            (32767.999985, 0x7FFF_FFFF),
+            (32767.996094, 0x7FFF_FF00),
+            (32767.125000, 0x7FFF_2000),
+            (32767.000000, 0x7FFF_0000),
+            (64.003906000, 0x0040_0100),
+            (64.000000000, 0x0040_0000),
+            (1.0000000000, 0x0001_0000),
+            (0.0000000000, 0x0000_0000),
+            (-1.000000000, 0xFFFF_0000),
+            (-64.00390600, 0xFFBF_FF00),
+            (-32768.00000, 0x8000_0000),
+        ];
+
+        for (fp, raw) in nums {
+            let real = Fixed::new(fp).to_frac_num() as u32;
+            assert_eq!(real, raw, "{real:#X} != {raw:#X} ({fp})");
+
+            let real = Fixed::new(fp).get();
+            let diff = (real - fp).abs();
+            assert!(diff <= 0.1 * Fixed::STEP, "{real} != {fp} (Δ={diff})");
+        }
+    }
 
     #[test]
     fn f2dot14() {
@@ -107,7 +137,7 @@ mod tests {
 
         for (fp, raw) in nums {
             let real = F2DOT14::new(fp).to_frac_num() as u16;
-            assert_eq!(real, raw, "{real} != {raw} ({fp})");
+            assert_eq!(real, raw, "{real:#X} != {raw:#X} ({fp})");
 
             let real = F2DOT14::new(fp).get();
             let diff = (real - fp).abs();

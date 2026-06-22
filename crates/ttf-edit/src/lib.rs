@@ -6,6 +6,7 @@
 #![feature(const_convert)]
 #![feature(const_default)]
 #![feature(const_clone)]
+#![feature(const_index)]
 #![feature(const_cmp)]
 
 pub mod tables;
