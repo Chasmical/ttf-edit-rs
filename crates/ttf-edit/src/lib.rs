@@ -2,6 +2,7 @@
 #![feature(derive_const)]
 #![feature(const_result_trait_fn)]
 #![feature(const_option_ops)]
+#![feature(const_closures)]
 #![feature(const_convert)]
 #![feature(const_clone)]
 #![feature(const_cmp)]
