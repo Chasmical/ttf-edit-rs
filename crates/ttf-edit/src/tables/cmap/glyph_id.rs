@@ -21,20 +21,20 @@ impl GlyphId {
 
 impl_fmt_from_getter! { Debug, Display, Binary, Octal, LowerHex, UpperHex, LowerExp, UpperExp for GlyphId }
 
-impl From<GlyphId> for u32 {
+const impl From<GlyphId> for u32 {
     fn from(value: GlyphId) -> Self {
         value.0.get()
     }
 }
-impl TryFrom<GlyphId> for u16 {
+const impl TryFrom<GlyphId> for u16 {
     type Error = ();
     fn try_from(value: GlyphId) -> Result<Self, Self::Error> {
-        value.0.get().try_into().map_err(|_| ())
+        value.0.get().try_into().or(Err(()))
     }
 }
-impl TryFrom<GlyphId> for u8 {
+const impl TryFrom<GlyphId> for u8 {
     type Error = ();
     fn try_from(value: GlyphId) -> Result<Self, Self::Error> {
-        value.0.get().try_into().map_err(|_| ())
+        value.0.get().try_into().or(Err(()))
     }
 }

@@ -4,6 +4,7 @@
 #![feature(const_option_ops)]
 #![feature(const_closures)]
 #![feature(const_convert)]
+#![feature(const_default)]
 #![feature(const_clone)]
 #![feature(const_cmp)]
 

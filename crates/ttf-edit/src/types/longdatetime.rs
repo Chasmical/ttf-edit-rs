@@ -22,23 +22,23 @@ impl LONGDATETIME {
     }
 }
 
-impl From<DateTime<Utc>> for LONGDATETIME {
-    fn from(value: DateTime<Utc>) -> Self {
-        Self::new(value)
-    }
-}
-impl TryFrom<LONGDATETIME> for DateTime<Utc> {
-    type Error = ();
-    fn try_from(value: LONGDATETIME) -> Result<Self, Self::Error> {
-        value.to_datetime().ok_or(())
-    }
-}
-
 impl fmt::Debug for LONGDATETIME {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.to_datetime() {
             Some(datetime) => datetime.fmt(f),
             None => write!(f, "{:#X}", u64::from_be_bytes(self.0)),
         }
+    }
+}
+
+const impl From<DateTime<Utc>> for LONGDATETIME {
+    fn from(value: DateTime<Utc>) -> Self {
+        Self::new(value)
+    }
+}
+const impl TryFrom<LONGDATETIME> for DateTime<Utc> {
+    type Error = ();
+    fn try_from(value: LONGDATETIME) -> Result<Self, Self::Error> {
+        value.to_datetime().ok_or(())
     }
 }

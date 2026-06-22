@@ -8,7 +8,7 @@ pub struct CmapSubtableFormat0 {
     glyph_id_array: [uint8; 256],
 }
 
-impl Default for CmapSubtableFormat0 {
+const impl Default for CmapSubtableFormat0 {
     fn default() -> Self {
         Self { glyph_id_array: [0; 256] }
     }

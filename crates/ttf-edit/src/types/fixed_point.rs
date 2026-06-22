@@ -39,6 +39,8 @@ macro_rules! impl_fixed_point_number {
             }
         }
 
+        impl_fmt_from_getter! { Debug, Display, LowerExp, UpperExp for $Name }
+
         const impl PartialOrd for $Name {
             fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
                 Some(self.cmp(other))
@@ -50,13 +52,28 @@ macro_rules! impl_fixed_point_number {
             }
         }
 
+        const impl PartialEq<f32> for $Name {
+            fn eq(&self, other: &f32) -> bool {
+                self.get().eq(other)
+            }
+        }
+        const impl PartialOrd<f32> for $Name {
+            fn partial_cmp(&self, other: &f32) -> Option<std::cmp::Ordering> {
+                self.get().partial_cmp(other)
+            }
+        }
+
+        impl std::str::FromStr for $Name {
+            type Err = ();
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                f32::from_str(s).or(Err(())).map(Self::from)
+            }
+        }
         const impl From<f32> for $Name {
             fn from(value: f32) -> $Name {
                 Self::new(value)
             }
         }
-
-        impl_fmt_from_getter! { Debug, Display, LowerExp, UpperExp for $Name }
     }
 }
 

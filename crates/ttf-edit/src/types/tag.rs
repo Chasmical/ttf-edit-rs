@@ -1,14 +1,14 @@
-use std::{fmt, str::FromStr};
+use std::fmt;
 
-#[derive(Clone, Copy, Eq, Hash, PartialOrd, Ord)]
-#[derive_const(PartialEq)]
+#[derive(Copy, Hash)]
+#[derive_const(Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct Tag([TagByte; 4]);
 
 #[rustfmt::skip]
 #[allow(dead_code)]
-#[derive(Clone, Copy, Eq, Hash, PartialOrd, Ord)]
-#[derive_const(PartialEq)]
+#[derive(Copy, Hash)]
+#[derive_const(Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
 enum TagByte {
     Space = 0x20, ExclamationMark, QuotationMark, NumberSign, DollarSign, PercentSign, Ampersand,
@@ -25,19 +25,27 @@ enum TagByte {
 }
 
 impl Tag {
-    pub const fn from_bytes(bytes: &[u8]) -> Result<Self, ()> {
-        if let Some(&bytes) = bytes.as_array::<4>()
-            && matches!(bytes, [0x20..=0x7E, 0x20..=0x7E, 0x20..=0x7E, 0x20..=0x7E])
-        {
+    pub const fn from_raw(bytes: [u8; 4]) -> Result<Self, ()> {
+        if matches!(bytes, [0x20..=0x7E, 0x20..=0x7E, 0x20..=0x7E, 0x20..=0x7E]) {
             Ok(Self(unsafe { std::mem::transmute::<[u8; 4], [TagByte; 4]>(bytes) }))
         } else {
             Err(())
         }
     }
+    pub const fn from_bytes(bytes: &[u8]) -> Result<Self, ()> {
+        Self::from_raw(match *bytes {
+            [a, b, c, d] => [a, b, c, d],
+            [a, b, c] => [a, b, c, b' '],
+            _ => return Err(()),
+        })
+    }
     pub const fn from_str(s: &str) -> Result<Self, ()> {
         Self::from_bytes(s.as_bytes())
     }
 
+    pub const fn to_bytes(self) -> [u8; 4] {
+        unsafe { std::mem::transmute(self.0) }
+    }
     pub const fn as_bytes(&self) -> &[u8; 4] {
         unsafe { std::mem::transmute(&self.0) }
     }
@@ -46,18 +54,26 @@ impl Tag {
     }
 }
 
-const fn predefined(s: &str) -> Tag {
-    Tag::from_bytes(s.as_bytes()).ok().unwrap()
+macro_rules! predefined_tags {
+    ($($tag:ident),* $(,)?) => ($(
+        pub const $tag: Self = Tag::from_str(stringify!($tag)).ok().unwrap();
+    )*);
 }
 
 #[allow(non_upper_case_globals)]
 impl Tag {
-    pub const cmap: Self = predefined("cmap");
+    predefined_tags! {
+        avar, BASE, CBDT, CBLC, CFF, CFF2, cmap, COLR, CPAL, cvar, cvt, DSIG, EBDT, EBLC, EBSC,
+        fpgm, fvar, gasp, GDEF, glyf, GPOS, GSUB, gvar, hdmx, head, hhea, hmtx, HVAR, JSTF, kern,
+        loca, LTSH, MATH, maxp, MERG, meta, MVAR, name, PCLT, post, prep, sbix, STAT, SVG, VDMX,
+        vhea, vmtx, VORG, VVAR,
+    }
+    pub const OS_2: Self = Tag::from_raw(*b"OS/2").ok().unwrap();
 }
 
 impl fmt::Debug for Tag {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_tuple("Tag").field(&self.as_str()).finish()
+        self.as_str().fmt(f)
     }
 }
 impl fmt::Display for Tag {
@@ -66,13 +82,28 @@ impl fmt::Display for Tag {
     }
 }
 
-const impl FromStr for Tag {
+const impl PartialEq<str> for Tag {
+    fn eq(&self, other: &str) -> bool {
+        self.as_str() == other
+    }
+}
+const impl PartialEq<[u8; 4]> for Tag {
+    fn eq(&self, other: &[u8; 4]) -> bool {
+        self.as_bytes() == other
+    }
+}
+const impl PartialEq<&[u8; 4]> for Tag {
+    fn eq(&self, other: &&[u8; 4]) -> bool {
+        self.as_bytes() == *other
+    }
+}
+
+const impl std::str::FromStr for Tag {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::from_str(s)
     }
 }
-
 const impl TryFrom<&[u8]> for Tag {
     type Error = ();
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
