@@ -1,5 +1,7 @@
 use crate::{
-    tables::{TableDirectoryRepr, cmap::GlyphId, get_dyn_array, get_dyn_array_offset},
+    bcow::{ByteRepr, ByteReprWriter, WriteByteRepr},
+    get_dyn_array, get_dyn_array_offset,
+    tables::{TableDirectoryRepr, cmap::GlyphId},
     types::{FWORD, Tag, UFWORD},
 };
 use std::{iter::FusedIterator, marker::PhantomData, ops::Range};
@@ -11,7 +13,7 @@ pub struct HmtxTableRepr {
     left_side_bearings: [FWORD; 0],
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(C)]
 pub struct LongHorMetricRepr {
     advance_width: UFWORD,
@@ -117,3 +119,86 @@ impl<'a> Iterator for Iter<'a> {
     }
 }
 impl<'a> FusedIterator for Iter<'a> {}
+
+impl<'a> ByteRepr for HmtxTableHandle<'a> {
+    type Owned = HmtxTable;
+    fn read_to_owned(&self) -> Self::Owned {
+        HmtxTable::new(self)
+    }
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct HmtxTable {
+    metrics: Vec<LongHorMetric>,
+}
+
+impl HmtxTable {
+    pub fn new(h: &HmtxTableHandle<'_>) -> Self {
+        let mut this = Self::default();
+        let mut last_aw = None;
+
+        for metric in h.h_metrics() {
+            last_aw = Some(metric.advance_width.get());
+            this.metrics.push(LongHorMetric { advance_width: last_aw, lsb: metric.lsb.get() });
+        }
+        for lsb in h.left_side_bearings() {
+            this.metrics.push(LongHorMetric { advance_width: last_aw, lsb: lsb.get() });
+        }
+
+        this
+    }
+    pub fn metrics(&self) -> &[LongHorMetric] {
+        &self.metrics
+    }
+    pub fn metric(&self, glyph_id: GlyphId) -> Option<LongHorMetric> {
+        self.metrics.get(glyph_id.get() as usize).copied()
+    }
+}
+
+impl<'a> WriteByteRepr<'a> for HmtxTable {
+    type Repr = HmtxTableHandle<'a>;
+
+    fn write_to_repr(&self, w: &'a mut ByteReprWriter) -> Self::Repr {
+        let same_last_aw_count = {
+            let mut it = self.metrics.iter().rev();
+
+            it.next()
+                .map(|metric| metric.advance_width)
+                .map_or(0, |last_aw| it.filter(|x| x.advance_width == last_aw).count())
+        };
+
+        let long_rec_count = self.metrics.len() - same_last_aw_count;
+
+        let v = w.as_mut_vec();
+        let hmtx_start_offset = v.len();
+        let byte_len = (long_rec_count + self.metrics.len()) * size_of::<FWORD>();
+        v.reserve(byte_len);
+
+        unsafe {
+            let dst: *mut LongHorMetricRepr = v.as_mut_ptr_range().end.cast();
+
+            for i in 0..long_rec_count {
+                let metric = self.metrics.get_unchecked(i);
+
+                *dst.add(i) = LongHorMetricRepr {
+                    advance_width: metric.advance_width.unwrap_or(0).into(),
+                    lsb: metric.lsb.into(),
+                };
+            }
+
+            let dst: *mut FWORD = dst.add(long_rec_count).cast();
+
+            for i in long_rec_count..self.metrics.len() {
+                *dst.add(i) = self.metrics.get_unchecked(i).lsb.into();
+            }
+
+            v.set_len(v.len() + byte_len);
+        }
+
+        HmtxTableHandle {
+            hmtx: unsafe { w.offset_cast(hmtx_start_offset) },
+            num_h_metrics: long_rec_count.try_into().unwrap(),
+            num_glyphs: self.metrics.len().try_into().unwrap(),
+        }
+    }
+}

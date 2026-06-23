@@ -1,11 +1,13 @@
-use super::{CmapSubtableTrait, Codepoint, GlyphId};
-use crate::{ByteRepr, IntoByteRepr, types::uint8};
+use crate::{
+    bcow::ByteRepr,
+    tables::cmap::{CmapSubtableTrait, Codepoint, GlyphId},
+};
 use std::iter::{Enumerate, FusedIterator};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(C)]
 pub struct CmapSubtableFormat0 {
-    glyph_id_array: [uint8; 256],
+    glyph_id_array: [u8; 256],
 }
 
 const impl Default for CmapSubtableFormat0 {
@@ -16,17 +18,8 @@ const impl Default for CmapSubtableFormat0 {
 
 impl ByteRepr for CmapSubtableFormat0 {
     type Owned = Self;
-    fn to_owned(&self) -> Self::Owned {
+    fn read_to_owned(&self) -> Self::Owned {
         *self
-    }
-}
-impl IntoByteRepr for CmapSubtableFormat0 {
-    type Repr = Self;
-    fn write_repr<'a>(&self, buf: &'a mut Vec<u8>) -> &'a Self::Repr {
-        buf.reserve(256);
-        let start = buf.as_ptr_range().end.cast();
-        buf.extend_from_slice(&self.glyph_id_array);
-        unsafe { &*start }
     }
 }
 
@@ -45,7 +38,7 @@ impl<'a> CmapSubtableTrait for &'a CmapSubtableFormat0 {
 }
 
 #[derive(Default, Debug, Clone)]
-pub struct Iter<'a>(Enumerate<std::slice::Iter<'a, uint8>>);
+pub struct Iter<'a>(Enumerate<std::slice::Iter<'a, u8>>);
 
 impl<'a> Iterator for Iter<'a> {
     type Item = (Codepoint, GlyphId);
