@@ -1,7 +1,8 @@
 use std::ops::Deref;
 
-pub trait ByteRepr {
-    type Owned: for<'a> WriteByteRepr<'a>;
+pub trait ByteRepr {}
+pub trait ReadByteRepr {
+    type Owned;
     fn read_to_owned(&self) -> Self::Owned;
 }
 pub trait WriteByteRepr<'a> {
@@ -9,16 +10,82 @@ pub trait WriteByteRepr<'a> {
     fn write_to_repr(&self, w: &'a mut ByteReprWriter) -> Self::Repr;
 }
 
-impl<T: ByteRepr> ByteRepr for Box<T> {
+impl<T: ReadByteRepr> ReadByteRepr for &T {
     type Owned = T::Owned;
     fn read_to_owned(&self) -> Self::Owned {
-        T::read_to_owned(self.as_ref())
+        T::read_to_owned(*self)
     }
 }
-impl<'a, T: ByteRepr + 'a> WriteByteRepr<'a> for T {
+impl<'a, T: 'a + ByteRepr> WriteByteRepr<'a> for T {
     type Repr = &'a T;
     fn write_to_repr(&self, w: &'a mut ByteReprWriter) -> Self::Repr {
-        w.write(self)
+        w.write::<T>(self)
+    }
+}
+
+#[derive(Copy)]
+#[derive_const(Clone)]
+pub enum BCow<Ptr: ReadByteRepr> {
+    Borrowed(Ptr),
+    Owned(Ptr::Owned),
+}
+
+impl<Ptr: ReadByteRepr> BCow<Ptr> {
+    pub const fn is_borrowed(&self) -> bool {
+        matches!(self, Self::Borrowed(_))
+    }
+    pub const fn is_owned(&self) -> bool {
+        matches!(self, Self::Owned(_))
+    }
+
+    pub fn to_mut(&mut self) -> &mut Ptr::Owned {
+        match self {
+            Self::Borrowed(borrowed) => {
+                *self = Self::Owned(borrowed.read_to_owned());
+                match *self {
+                    Self::Borrowed(_) => unreachable!(),
+                    Self::Owned(ref mut owned) => owned,
+                }
+            },
+            Self::Owned(owned) => owned,
+        }
+    }
+
+    pub fn into_owned(self) -> Ptr::Owned {
+        match self {
+            Self::Borrowed(b) => b.read_to_owned(),
+            Self::Owned(o) => o,
+        }
+    }
+}
+
+const impl<T: ReadByteRepr<Owned = T>> Deref for BCow<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Borrowed(b) => b,
+            Self::Owned(o) => o,
+        }
+    }
+}
+impl<T: ReadByteRepr<Owned: Clone>> ReadByteRepr for BCow<T> {
+    type Owned = T::Owned;
+    fn read_to_owned(&self) -> T::Owned {
+        match self {
+            Self::Borrowed(b) => b.read_to_owned(),
+            Self::Owned(o) => o.clone(),
+        }
+    }
+}
+impl<'a, T: WriteByteRepr<'a> + ReadByteRepr<Owned: WriteByteRepr<'a, Repr = T::Repr>>>
+    WriteByteRepr<'a> for BCow<T>
+{
+    type Repr = T::Repr;
+    fn write_to_repr(&self, w: &'a mut ByteReprWriter) -> Self::Repr {
+        match self {
+            Self::Borrowed(b) => b.write_to_repr(w),
+            Self::Owned(o) => o.write_to_repr(w),
+        }
     }
 }
 
@@ -49,71 +116,6 @@ impl ByteReprWriter {
         self.0.extend_from_slice(bytes);
 
         unsafe { &*self.0.as_ptr().add(self.0.len() - size_of::<Repr>()).cast() }
-    }
-}
-
-pub enum BCow<'a, Repr: ByteRepr> {
-    Borrowed(&'a Repr),
-    Owned(Repr::Owned),
-}
-
-impl<'a, T: ByteRepr> BCow<'a, T> {
-    pub const fn is_borrowed(&self) -> bool {
-        matches!(self, Self::Borrowed(_))
-    }
-    pub const fn is_owned(&self) -> bool {
-        matches!(self, Self::Owned(_))
-    }
-
-    pub fn to_mut(&mut self) -> &mut T::Owned {
-        match *self {
-            Self::Borrowed(borrowed) => {
-                *self = Self::Owned(borrowed.read_to_owned());
-                match *self {
-                    Self::Borrowed(..) => unreachable!(),
-                    Self::Owned(ref mut owned) => owned,
-                }
-            },
-            Self::Owned(ref mut owned) => owned,
-        }
-    }
-
-    pub fn into_owned(self) -> T::Owned {
-        match self {
-            Self::Borrowed(b) => b.read_to_owned(),
-            Self::Owned(o) => o,
-        }
-    }
-}
-
-const impl<'a, T: ByteRepr<Owned: [const] Deref<Target = T>>> Deref for BCow<'a, T> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        match *self {
-            Self::Borrowed(b) => b,
-            Self::Owned(ref o) => o.deref(),
-        }
-    }
-}
-
-const impl<'a, T: ByteRepr<Owned: [const] Clone>> Clone for BCow<'a, T> {
-    fn clone(&self) -> Self {
-        match *self {
-            Self::Borrowed(b) => Self::Borrowed(b),
-            Self::Owned(ref o) => Self::Owned(o.clone()),
-        }
-    }
-}
-
-impl<'b: 'a, 'a, T: ByteRepr + 'a> WriteByteRepr<'a> for BCow<'b, T>
-where T::Owned: WriteByteRepr<'a, Repr = &'a T>
-{
-    type Repr = &'a T;
-    fn write_to_repr(&self, w: &'a mut ByteReprWriter) -> Self::Repr {
-        match *self {
-            Self::Borrowed(b) => b.write_to_repr(w),
-            Self::Owned(ref o) => o.write_to_repr(w),
-        }
     }
 }
 

@@ -1,5 +1,5 @@
 use crate::{
-    bcow::ByteRepr,
+    bcow::{ByteRepr, ReadByteRepr},
     types::{FWORD, UFWORD, int16, uint16},
 };
 
@@ -41,9 +41,10 @@ const impl Default for HheaTableRepr {
     }
 }
 
-impl ByteRepr for HheaTableRepr {
-    type Owned = Box<Self>;
+impl ByteRepr for HheaTableRepr {}
+impl ReadByteRepr for HheaTableRepr {
+    type Owned = Self;
     fn read_to_owned(&self) -> Self::Owned {
-        Box::new(*self)
+        *self
     }
 }

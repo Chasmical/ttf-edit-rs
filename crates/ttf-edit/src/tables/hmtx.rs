@@ -1,5 +1,5 @@
 use crate::{
-    bcow::{ByteRepr, ByteReprWriter, WriteByteRepr},
+    bcow::{ByteRepr, ByteReprWriter, ReadByteRepr, WriteByteRepr},
     get_dyn_array, get_dyn_array_offset,
     tables::{TableDirectoryRepr, cmap::GlyphId},
     types::{FWORD, Tag, UFWORD},
@@ -120,7 +120,9 @@ impl<'a> Iterator for Iter<'a> {
 }
 impl<'a> FusedIterator for Iter<'a> {}
 
-impl<'a> ByteRepr for HmtxTableHandle<'a> {
+impl ByteRepr for HmtxTableRepr {}
+
+impl<'a> ReadByteRepr for HmtxTableHandle<'a> {
     type Owned = HmtxTable;
     fn read_to_owned(&self) -> Self::Owned {
         HmtxTable::new(self)
@@ -152,6 +154,20 @@ impl HmtxTable {
     }
     pub fn metric(&self, glyph_id: GlyphId) -> Option<LongHorMetric> {
         self.metrics.get(glyph_id.get() as usize).copied()
+    }
+}
+
+impl<'a> WriteByteRepr<'a> for HmtxTableHandle<'a> {
+    type Repr = Self;
+
+    fn write_to_repr(&self, w: &'a mut ByteReprWriter) -> Self::Repr {
+        let hmtx_start_offset = w.len();
+
+        Self {
+            hmtx: unsafe { w.offset_cast(hmtx_start_offset) },
+            num_h_metrics: self.num_h_metrics,
+            num_glyphs: self.num_glyphs,
+        }
     }
 }
 

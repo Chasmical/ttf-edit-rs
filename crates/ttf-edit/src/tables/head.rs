@@ -1,5 +1,5 @@
 use crate::{
-    bcow::ByteRepr,
+    bcow::{ByteRepr, ReadByteRepr},
     types::{Fixed, LONGDATETIME, int16, uint16, uint32},
 };
 
@@ -38,9 +38,10 @@ const impl Default for HeadTableRepr {
     }
 }
 
-impl ByteRepr for HeadTableRepr {
-    type Owned = Box<Self>;
+impl ByteRepr for HeadTableRepr {}
+impl ReadByteRepr for HeadTableRepr {
+    type Owned = Self;
     fn read_to_owned(&self) -> Self::Owned {
-        Box::new(*self)
+        *self
     }
 }

@@ -1,5 +1,5 @@
 use crate::{
-    bcow::ByteRepr,
+    bcow::{ByteRepr, ReadByteRepr},
     types::{Version16Dot16, uint16},
 };
 
@@ -31,9 +31,10 @@ const impl Default for MaxpTableRepr {
     }
 }
 
-impl ByteRepr for MaxpTableRepr {
-    type Owned = Box<Self>;
+impl ByteRepr for MaxpTableRepr {}
+impl ReadByteRepr for MaxpTableRepr {
+    type Owned = Self;
     fn read_to_owned(&self) -> Self::Owned {
-        Box::new(*self)
+        *self
     }
 }

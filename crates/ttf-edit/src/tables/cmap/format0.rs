@@ -1,5 +1,5 @@
 use crate::{
-    bcow::ByteRepr,
+    bcow::{ByteRepr, ReadByteRepr},
     tables::cmap::{CmapSubtableTrait, Codepoint, GlyphId},
 };
 use std::iter::{Enumerate, FusedIterator};
@@ -16,7 +16,8 @@ const impl Default for CmapSubtableFormat0 {
     }
 }
 
-impl ByteRepr for CmapSubtableFormat0 {
+impl ByteRepr for CmapSubtableFormat0 {}
+impl ReadByteRepr for CmapSubtableFormat0 {
     type Owned = Self;
     fn read_to_owned(&self) -> Self::Owned {
         *self
@@ -45,7 +46,7 @@ impl<'a> Iterator for Iter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.0.find_map(|(idx, &id)| {
-            if id != 0 { Some(((idx as u32).into(), GlyphId::new(id as u32))) } else { None }
+            (id != 0).then(|| ((idx as u32).into(), GlyphId::new(id as u32)))
         })
     }
     fn size_hint(&self) -> (usize, Option<usize>) {
